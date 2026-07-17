@@ -29,6 +29,8 @@ DEFAULT_SETTINGS = {
     "interval": 4,
     "sound": True,
     "volume": 50,
+    "tick": False,
+    "tickVolume": 50,
 }
 
 # server-side clamps mirror the client's, so bad input can't corrupt the DB
@@ -38,8 +40,9 @@ INT_BOUNDS = {
     "longBreak": (1, 180),
     "interval": (1, 12),
     "volume": (0, 100),
+    "tickVolume": (0, 100),
 }
-BOOL_KEYS = ("autoBreak", "autoPomo", "sound")
+BOOL_KEYS = ("autoBreak", "autoPomo", "sound", "tick")
 
 MIME = {
     ".html": "text/html; charset=utf-8",

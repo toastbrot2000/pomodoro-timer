@@ -15,6 +15,8 @@
     interval: 4,
     sound: true,
     volume: 50,
+    tick: false,
+    tickVolume: 50,
   };
 
   const MODE_LABEL = {
@@ -55,6 +57,7 @@
   let running = false;
   let ticker = null;
   let endTime = 0;
+  let lastSecond = null; // last whole second we played a tick for
   let completedPomodoros = 0;
   let activeTaskId = null;
 
@@ -90,6 +93,8 @@
     interval: $("#setInterval"),
     sound: $("#setSound"),
     volume: $("#setVolume"),
+    tick: $("#setTick"),
+    tickVolume: $("#setTickVolume"),
   };
 
   // ---------- dial ----------
@@ -175,6 +180,7 @@
     if (running) return;
     running = true;
     endTime = Date.now() + remaining * 1000;
+    lastSecond = remaining; // don't fire a tick on the very first frame
     startBtn.textContent = "Pause";
     startBtn.classList.add("is-running");
     ticker = setInterval(tick, 250);
@@ -192,17 +198,28 @@
   function tick() {
     remaining = Math.max(0, Math.round((endTime - Date.now()) / 1000));
     render();
+    if (running && remaining > 0 && remaining !== lastSecond) {
+      lastSecond = remaining;
+      playTick();
+    }
     if (remaining <= 0) complete();
+  }
+
+  // Leaving a finished focus session — shared by the timer completing on its
+  // own and by the Skip button, so both credit the active task and both count
+  // toward the long-break cycle.
+  function finishPomodoro() {
+    completedPomodoros += 1;
+    incrementActiveTask();
+    const useLong = completedPomodoros % settings.interval === 0;
+    setMode(useLong ? "longBreak" : "shortBreak");
   }
 
   function complete() {
     stop();
     playAlarm();
     if (mode === "pomodoro") {
-      completedPomodoros += 1;
-      incrementActiveTask();
-      const useLong = completedPomodoros % settings.interval === 0;
-      setMode(useLong ? "longBreak" : "shortBreak");
+      finishPomodoro();
       if (settings.autoBreak) start();
     } else {
       setMode("pomodoro");
@@ -211,28 +228,81 @@
     notify();
   }
 
-  // ---------- alarm (synthesized, no audio files) ----------
+  // ---------- audio (synthesized, no audio files) ----------
+  // The AudioContext must be created/resumed during a user gesture, or the
+  // browser keeps it suspended and nothing is audible. ensureAudio() is called
+  // from the Start click for exactly that reason.
   let audioCtx = null;
-  function playAlarm() {
-    if (!settings.sound) return;
+  function ensureAudio() {
     try {
-      audioCtx =
-        audioCtx || new (window.AudioContext || window.webkitAudioContext)();
-      const vol = (settings.volume / 100) * 0.4;
-      [0, 0.35, 0.7].forEach((offset) => {
-        const t = audioCtx.currentTime + offset;
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.type = "sine";
-        osc.frequency.value = 880;
-        gain.gain.setValueAtTime(0, t);
-        gain.gain.linearRampToValueAtTime(vol, t + 0.02);
-        gain.gain.linearRampToValueAtTime(0, t + 0.25);
-        osc.connect(gain).connect(audioCtx.destination);
-        osc.start(t);
-        osc.stop(t + 0.3);
-      });
-    } catch (_) {}
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === "suspended") audioCtx.resume();
+    } catch (_) {
+      audioCtx = null;
+    }
+    return audioCtx;
+  }
+
+  function beep(freq, startAt, dur, peak) {
+    const t = audioCtx.currentTime + startAt;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = "sine";
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0, t);
+    gain.gain.linearRampToValueAtTime(peak, t + 0.02);
+    gain.gain.linearRampToValueAtTime(0, t + dur);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(t);
+    osc.stop(t + dur + 0.02);
+  }
+
+  function playAlarm() {
+    if (!settings.sound || !ensureAudio()) return;
+    const peak = (settings.volume / 100) * 0.4;
+    beep(880, 0, 0.25, peak);
+    beep(880, 0.35, 0.25, peak);
+    beep(880, 0.7, 0.25, peak);
+  }
+
+  // short mechanical "tick" for button presses
+  function playClick() {
+    if (!settings.sound || !ensureAudio()) return;
+    const peak = (settings.volume / 100) * 0.22 || 0.001;
+    const t = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = "triangle";
+    osc.frequency.setValueAtTime(660, t);
+    osc.frequency.exponentialRampToValueAtTime(330, t + 0.05);
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(peak, t + 0.005);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.07);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(t);
+    osc.stop(t + 0.08);
+  }
+
+  // per-second ticking while the timer runs (own toggle + volume)
+  let tockParity = false;
+  function playTick() {
+    if (!settings.tick || !ensureAudio()) return;
+    const peak = (settings.tickVolume / 100) * 0.18;
+    if (peak <= 0) return;
+    tockParity = !tockParity;
+    const t = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = "square";
+    osc.frequency.value = tockParity ? 1150 : 900; // tick / tock
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(peak, t + 0.002);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.03);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(t);
+    osc.stop(t + 0.04);
   }
 
   function notify() {
@@ -368,6 +438,8 @@
     f.interval.value = settings.interval;
     f.sound.checked = settings.sound;
     f.volume.value = settings.volume;
+    f.tick.checked = settings.tick;
+    f.tickVolume.value = settings.tickVolume;
   }
   function applySettingsForm() {
     const clamp = (v, min, max, dflt) => {
@@ -382,6 +454,8 @@
     settings.interval = clamp(f.interval.value, 1, 12, 4);
     settings.sound = f.sound.checked;
     settings.volume = clamp(f.volume.value, 0, 100, 50);
+    settings.tick = f.tick.checked;
+    settings.tickVolume = clamp(f.tickVolume.value, 0, 100, 50);
 
     api.send("PUT", "/api/settings", settings).catch(() => {});
 
@@ -410,7 +484,8 @@
 
   // ---------- controls ----------
   startBtn.addEventListener("click", () => {
-    if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
+    ensureAudio(); // unlock the audio context on this user gesture
+    playClick(); // audible button-press feedback
     if ("Notification" in window && Notification.permission === "default") {
       Notification.requestPermission();
     }
@@ -418,9 +493,7 @@
   });
   skipBtn.addEventListener("click", () => {
     if (mode === "pomodoro") {
-      completedPomodoros += 1;
-      const useLong = completedPomodoros % settings.interval === 0;
-      setMode(useLong ? "longBreak" : "shortBreak");
+      finishPomodoro();
     } else {
       setMode("pomodoro");
     }
