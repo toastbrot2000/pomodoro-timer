@@ -51,15 +51,19 @@
   --mono: "Space Mono", ui-monospace, "SFMono-Regular", monospace;
 }
 
+/* per mode: accent + a slight tint of the base toward that accent's hue */
 body[data-mode="pomodoro"] {
   --accent: #db6a43;
-} /* ember */
+  --bg: #211a17;
+} /* ember  — base warms */
 body[data-mode="shortBreak"] {
   --accent: #7fa07a;
-} /* sage */
+  --bg: #191d1a;
+} /* sage   — base cools green */
 body[data-mode="longBreak"] {
   --accent: #7c8bb0;
-} /* steel */
+  --bg: #181b20;
+} /* steel  — base cools blue */
 
 * {
   box-sizing: border-box;
@@ -79,13 +83,14 @@ html {
 body {
   font-family: var(--grotesk);
   font-weight: 400;
-  background: var(--bg);
+  background-color: var(--bg);
   color: var(--ink);
   min-height: 100vh;
   min-height: 100dvh;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
+  transition: background-color 0.6s ease;
 }
 
 .wrap {
