@@ -8,18 +8,17 @@ Backend is **Python standard library only** (no third-party dependencies).
 
 ## Features
 
-- **Analog dial** — engraved minute ticks and a depleting arc that unwinds as
-  time runs down, with a small accent pip tracking the remaining time
-- **Three modes** — Focus, Short Break, Long Break; only the accent shifts per
-  mode (ember / sage / steel), so it stays calm rather than repainting the screen
-- **Task list** — estimated pomodoros, done counts, active-task selection
-- **Cycle pips** — show progress toward the next long break
-- **Auto-cycling** — long break after a configurable number of pomodoros
-- **Customizable** — durations, auto-start breaks/pomodoros, alarm sound & volume
+- **Analog dial** engraved minute ticks and a depleting arc that unwinds as
+  time runs down
+- **Three modes** Focus, Short Break, Long Break
+- **Task list** estimated pomodoros, done counts, active-task selection
+- **Cycle pips** show progress toward the next long break
+- **Auto-cycling** long break after a configurable number of pomodoros
+- **Customizable** durations, auto-start breaks/pomodoros, alarm sound & volume
 - **Synthesized alarm** via the Web Audio API (no audio files) + optional desktop notifications
 - **Keyboard** — `Space` to start/pause, `Esc` to close settings
 - Tab title counts down so you can track time from another tab
-- Self-hosted fonts (Space Grotesk + Space Mono) — nothing loads from a CDN
+- Self-hosted fonts (Space Grotesk + Space Mono)
 
 ## Run it
 
@@ -87,10 +86,8 @@ data/                local SQLite db (gitignored)
 
 ## Design
 
-Direction: a *precision instrument* on warm dark. The dial is the signature —
-grounded in the mechanical tomato kitchen timer the technique is named after.
-Type is Space Grotesk (UI/display) with Space Mono for technical labels;
-structure uses whitespace and hairlines instead of cards.
+<img width="741" height="1325" alt="image" src="https://github.com/user-attachments/assets/f8877167-9877-4c75-94f4-bdba7dcff984" />
+
 
 ## License
 
