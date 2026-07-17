@@ -229,14 +229,28 @@
   }
 
   // ---------- audio (synthesized, no audio files) ----------
-  // The AudioContext must be created/resumed during a user gesture, or the
-  // browser keeps it suspended and nothing is audible. ensureAudio() is called
+  // Modelled on a mechanical kitchen timer (Eieruhr): wooden clicks and a
+  // small ringing bell — no pitched "beeps".
+  // The AudioContext must be created/resumed during a user gesture or the
+  // browser keeps it suspended and nothing is audible; ensureAudio() is called
   // from the Start click for exactly that reason.
   let audioCtx = null;
+  let master = null; // compressor: keeps overlapping bell strikes from clipping
+  let noiseBuffer = null;
+
   function ensureAudio() {
     try {
       if (!audioCtx) {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (!master) {
+        master = audioCtx.createDynamicsCompressor();
+        master.threshold.value = -10;
+        master.knee.value = 20;
+        master.ratio.value = 6;
+        master.attack.value = 0.002;
+        master.release.value = 0.15;
+        master.connect(audioCtx.destination);
       }
       if (audioCtx.state === "suspended") audioCtx.resume();
     } catch (_) {
@@ -245,64 +259,97 @@
     return audioCtx;
   }
 
-  function beep(freq, startAt, dur, peak) {
-    const t = audioCtx.currentTime + startAt;
+  function getNoise() {
+    if (!noiseBuffer) {
+      const len = Math.floor(audioCtx.sampleRate * 0.05);
+      noiseBuffer = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+      const data = noiseBuffer.getChannelData(0);
+      for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+    }
+    return noiseBuffer;
+  }
+
+  // Natural mechanical click: a short band-passed noise transient (the "clack")
+  // plus a fast low resonance (the wooden "body"). No oscillator tone.
+  function mechClick(peak, centerHz, bodyHz) {
+    if (peak <= 0) return;
+    const t = audioCtx.currentTime;
+
+    const src = audioCtx.createBufferSource();
+    src.buffer = getNoise();
+    const bp = audioCtx.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.value = centerHz;
+    bp.Q.value = 1.1;
+    const ng = audioCtx.createGain();
+    ng.gain.setValueAtTime(peak, t);
+    ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.022);
+    src.connect(bp).connect(ng).connect(master);
+    src.start(t);
+    src.stop(t + 0.05);
+
     const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.type = "sine";
-    osc.frequency.value = freq;
-    gain.gain.setValueAtTime(0, t);
-    gain.gain.linearRampToValueAtTime(peak, t + 0.02);
-    gain.gain.linearRampToValueAtTime(0, t + dur);
-    osc.connect(gain).connect(audioCtx.destination);
+    osc.type = "triangle";
+    osc.frequency.value = bodyHz;
+    const og = audioCtx.createGain();
+    og.gain.setValueAtTime(peak * 0.5, t);
+    og.gain.exponentialRampToValueAtTime(0.0001, t + 0.03);
+    osc.connect(og).connect(master);
     osc.start(t);
-    osc.stop(t + dur + 0.02);
+    osc.stop(t + 0.04);
+  }
+
+  // One bell strike: a few inharmonic partials with exponential decay. Struck
+  // rapidly in sequence they make the egg-timer "brrring".
+  function bellStrike(startAt, fundamental, peak) {
+    const t = audioCtx.currentTime + startAt;
+    const partials = [
+      [1.0, 1.0, 0.5],
+      [2.76, 0.55, 0.4],
+      [5.4, 0.33, 0.3],
+    ];
+    partials.forEach(([ratio, g, decay]) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = fundamental * ratio;
+      gain.gain.setValueAtTime(peak * g, t);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + decay);
+      osc.connect(gain).connect(master);
+      osc.start(t);
+      osc.stop(t + decay + 0.05);
+    });
   }
 
   function playAlarm() {
     if (!settings.sound || !ensureAudio()) return;
-    const peak = (settings.volume / 100) * 0.4;
-    beep(880, 0, 0.25, peak);
-    beep(880, 0.35, 0.25, peak);
-    beep(880, 0.7, 0.25, peak);
+    const peak = (settings.volume / 100) * 0.5;
+    if (peak <= 0) return;
+    const strikes = 20; // ~1.2s of ringing
+    const gap = 0.06;
+    for (let i = 0; i < strikes; i++) {
+      const env = 1 - (i / strikes) * 0.4; // let the ring fade out
+      bellStrike(i * gap, 1046, peak * env);
+    }
   }
 
-  // short mechanical "tick" for button presses
+  // wooden button-press click (lower/chunkier than the tick)
   function playClick() {
     if (!settings.sound || !ensureAudio()) return;
-    const peak = (settings.volume / 100) * 0.22 || 0.001;
-    const t = audioCtx.currentTime;
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.type = "triangle";
-    osc.frequency.setValueAtTime(660, t);
-    osc.frequency.exponentialRampToValueAtTime(330, t + 0.05);
-    gain.gain.setValueAtTime(0.0001, t);
-    gain.gain.exponentialRampToValueAtTime(peak, t + 0.005);
-    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.07);
-    osc.connect(gain).connect(audioCtx.destination);
-    osc.start(t);
-    osc.stop(t + 0.08);
+    mechClick((settings.volume / 100) * 0.7, 1500, 140);
   }
 
-  // per-second ticking while the timer runs (own toggle + volume)
+  // per-second ticking while the timer runs (own toggle + volume);
+  // alternates a brighter "tick" and a darker "tock"
   let tockParity = false;
   function playTick() {
     if (!settings.tick || !ensureAudio()) return;
-    const peak = (settings.tickVolume / 100) * 0.18;
-    if (peak <= 0) return;
     tockParity = !tockParity;
-    const t = audioCtx.currentTime;
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.type = "square";
-    osc.frequency.value = tockParity ? 1150 : 900; // tick / tock
-    gain.gain.setValueAtTime(0.0001, t);
-    gain.gain.exponentialRampToValueAtTime(peak, t + 0.002);
-    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.03);
-    osc.connect(gain).connect(audioCtx.destination);
-    osc.start(t);
-    osc.stop(t + 0.04);
+    mechClick(
+      (settings.tickVolume / 100) * 0.6,
+      tockParity ? 2400 : 1800,
+      tockParity ? 210 : 160
+    );
   }
 
   function notify() {
