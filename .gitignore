@@ -1,3 +1,13 @@
+# local SQLite database (created at runtime; lives on a Docker volume in prod)
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# Python
+__pycache__/
+*.pyc
+
 # OS / editor cruft
 .DS_Store
 Thumbs.db
@@ -5,6 +15,6 @@ Thumbs.db
 .idea/
 .vscode/
 
-# Node (not used yet, but harmless to ignore if you add tooling later)
+# Node (only if you add tooling later)
 node_modules/
 npm-debug.log*

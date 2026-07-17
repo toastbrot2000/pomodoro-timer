@@ -4,5 +4,11 @@ services:
     image: pomodoro-timer
     container_name: pomodoro-timer
     ports:
-      - "8080:80"
+      - "8080:8080"
+    volumes:
+      # named volume keeps the SQLite DB across container rebuilds/redeploys
+      - pomodoro-data:/data
     restart: unless-stopped
+
+volumes:
+  pomodoro-data:

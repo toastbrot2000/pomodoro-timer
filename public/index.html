@@ -2,112 +2,139 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Pomodoro Timer</title>
-    <meta name="description" content="A simple self-hosted Pomodoro timer." />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Pomodoro</title>
+    <meta name="description" content="A self-hosted Pomodoro timer." />
+    <meta name="color-scheme" content="dark" />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8D%85%3C/text%3E%3C/svg%3E" />
+    <link rel="preload" href="fonts/space-grotesk-700.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="fonts/space-mono-400.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="style.css" />
   </head>
   <body data-mode="pomodoro">
-    <header class="topbar">
-      <div class="topbar__inner">
-        <div class="brand">🍅 Pomodoro Timer</div>
-        <button id="openSettings" class="btn btn--ghost" type="button" aria-label="Settings">
-          ⚙ Settings
-        </button>
-      </div>
-    </header>
+    <div class="wrap">
+      <header class="masthead">
+        <div class="mark">
+          <span class="mark__dot"></span>
+          <span class="mark__name">POMODORO</span>
+          <span class="mark__sub">focus instrument</span>
+        </div>
+        <button id="openSettings" class="ghost-btn" type="button">Settings</button>
+      </header>
 
-    <main class="app">
-      <section class="timer-card" aria-label="Timer">
-        <div class="modes" role="tablist" aria-label="Timer mode">
-          <button class="mode is-active" data-set-mode="pomodoro" role="tab" type="button">Pomodoro</button>
-          <button class="mode" data-set-mode="shortBreak" role="tab" type="button">Short Break</button>
-          <button class="mode" data-set-mode="longBreak" role="tab" type="button">Long Break</button>
+      <nav class="modes" role="tablist" aria-label="Timer mode">
+        <button class="mode is-active" data-set-mode="pomodoro" role="tab" aria-selected="true" type="button">Focus</button>
+        <button class="mode" data-set-mode="shortBreak" role="tab" aria-selected="false" type="button">Short break</button>
+        <button class="mode" data-set-mode="longBreak" role="tab" aria-selected="false" type="button">Long break</button>
+      </nav>
+
+      <section class="dial-wrap" aria-label="Timer">
+        <div class="dial">
+          <svg class="dial__svg" viewBox="0 0 240 240" role="img" aria-hidden="true">
+            <g id="dialTicks"></g>
+            <circle class="dial__track" cx="120" cy="120" r="96"></circle>
+            <circle
+              id="dialArc"
+              class="dial__arc"
+              cx="120"
+              cy="120"
+              r="96"
+              transform="rotate(-90 120 120)"
+            ></circle>
+            <g id="dialPipG" class="dial__pipG">
+              <circle class="dial__pip" cx="120" cy="24" r="4.5"></circle>
+            </g>
+          </svg>
+          <div class="dial__center">
+            <div id="time" class="time" aria-live="polite">25:00</div>
+            <div id="modeLabel" class="dial__mode">Focus</div>
+          </div>
         </div>
 
-        <div id="time" class="time" aria-live="polite">25:00</div>
-
-        <div class="controls">
-          <button id="startBtn" class="btn btn--primary" type="button">START</button>
-          <button id="skipBtn" class="btn btn--skip" type="button" aria-label="Skip" title="Skip">⏭</button>
-        </div>
+        <div id="cycle" class="cycle" aria-hidden="true"></div>
+        <p class="cycle__label"><span id="sessionCount">Session 1</span></p>
       </section>
 
-      <p id="roundInfo" class="round-info">#1</p>
-      <p id="focusHint" class="focus-hint">Time to focus!</p>
+      <div class="controls">
+        <button id="startBtn" class="start" type="button">Start</button>
+        <button id="skipBtn" class="skip" type="button" aria-label="Skip to next interval">Skip →</button>
+      </div>
 
       <section class="tasks" aria-label="Tasks">
         <div class="tasks__head">
           <h2 class="tasks__title">Tasks</h2>
-          <div class="tasks__menu">
-            <button id="clearFinished" class="link-btn" type="button">Clear finished</button>
-          </div>
+          <button id="clearFinished" class="ghost-btn ghost-btn--sm" type="button">Clear finished</button>
         </div>
 
         <ul id="taskList" class="task-list"></ul>
 
-        <button id="addTaskBtn" class="add-task" type="button">＋ Add Task</button>
+        <button id="addTaskBtn" class="add-task" type="button">＋ Add a task</button>
 
         <form id="taskForm" class="task-form" hidden>
-          <input id="taskInput" class="task-form__input" type="text" placeholder="What are you working on?" maxlength="120" autocomplete="off" />
+          <input
+            id="taskInput"
+            class="task-form__input"
+            type="text"
+            placeholder="What are you working on?"
+            maxlength="120"
+            autocomplete="off"
+          />
           <div class="task-form__row">
             <label class="task-form__est">
-              Est pomodoros
-              <input id="taskEst" type="number" min="1" max="99" value="1" />
+              Est
+              <input id="taskEst" class="num" type="number" min="1" max="99" value="1" />
             </label>
             <div class="task-form__actions">
-              <button type="button" id="cancelTask" class="btn btn--ghost">Cancel</button>
-              <button type="submit" class="btn btn--primary">Save</button>
+              <button type="button" id="cancelTask" class="btn btn--text">Cancel</button>
+              <button type="submit" class="btn btn--solid">Save</button>
             </div>
           </div>
         </form>
       </section>
-    </main>
+    </div>
 
     <!-- Settings dialog -->
     <div id="settingsBackdrop" class="backdrop" hidden>
       <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
         <div class="modal__head">
           <h2 id="settingsTitle">Settings</h2>
-          <button id="closeSettings" class="icon-btn" type="button" aria-label="Close">✕</button>
+          <button id="closeSettings" class="ghost-btn" type="button" aria-label="Close settings">✕</button>
         </div>
 
         <div class="modal__body">
-          <div class="settings-group">
-            <h3 class="settings-group__title">⏱ Timer (minutes)</h3>
+          <div class="row row--stack">
+            <span class="u-mono" style="font-size: 11px; color: var(--ink-dim)">Timer · minutes</span>
             <div class="durations">
-              <label>Pomodoro<input id="setPomodoro" type="number" min="1" max="180" /></label>
-              <label>Short Break<input id="setShort" type="number" min="1" max="180" /></label>
-              <label>Long Break<input id="setLong" type="number" min="1" max="180" /></label>
+              <label>Focus<input id="setPomodoro" class="num" type="number" min="1" max="180" /></label>
+              <label>Short<input id="setShort" class="num" type="number" min="1" max="180" /></label>
+              <label>Long<input id="setLong" class="num" type="number" min="1" max="180" /></label>
             </div>
           </div>
 
-          <div class="settings-group settings-group--row">
-            <span>Auto start breaks</span>
+          <div class="row">
+            <span class="row__label">Auto-start breaks</span>
             <label class="switch"><input id="setAutoBreak" type="checkbox" /><span class="slider"></span></label>
           </div>
-          <div class="settings-group settings-group--row">
-            <span>Auto start pomodoros</span>
+          <div class="row">
+            <span class="row__label">Auto-start pomodoros</span>
             <label class="switch"><input id="setAutoPomo" type="checkbox" /><span class="slider"></span></label>
           </div>
-          <div class="settings-group settings-group--row">
-            <span>Long break interval</span>
-            <input id="setInterval" class="num-inline" type="number" min="1" max="12" />
+          <div class="row">
+            <span class="row__label">Long break after</span>
+            <input id="setInterval" class="num num--inline" type="number" min="1" max="12" />
           </div>
-
-          <div class="settings-group settings-group--row">
-            <span>🔔 Alarm sound</span>
+          <div class="row">
+            <span class="row__label">Alarm sound</span>
             <label class="switch"><input id="setSound" type="checkbox" /><span class="slider"></span></label>
           </div>
-          <div class="settings-group settings-group--row">
-            <span>Volume</span>
+          <div class="row">
+            <span class="row__label">Volume</span>
             <input id="setVolume" type="range" min="0" max="100" />
           </div>
         </div>
 
         <div class="modal__foot">
-          <button id="saveSettings" class="btn btn--primary" type="button">OK</button>
+          <button id="saveSettings" class="btn btn--solid" type="button">Done</button>
         </div>
       </div>
     </div>
